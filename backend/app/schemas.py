@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RequestStatus(str, Enum):
@@ -31,6 +31,7 @@ class SupportRequestCreate(BaseModel):
 
 
 class SupportRequestResponse(SupportRequestCreate):
+    model_config = ConfigDict(from_attributes=True)
     request_id: int
     status: RequestStatus
     assigned_to: Optional[str] = None
@@ -52,11 +53,14 @@ class CommentCreate(BaseModel):
 
 
 class CommentResponse(CommentCreate):
+    model_config = ConfigDict(from_attributes=True)
     comment_id: int
     request_id: int
     created_at: datetime
-    
+
 class StatusHistoryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     history_id: int
     request_id: int
     old_status: RequestStatus

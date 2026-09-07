@@ -1,153 +1,203 @@
 from datetime import datetime, timezone
 from typing import List
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
+from app import models
+from app.database import get_db
 from app.schemas import (
+    CommentCreate,
+    CommentResponse,
     RequestAssignmentUpdate,
     RequestStatus,
     RequestStatusUpdate,
+    StatusHistoryResponse,
     SupportRequestCreate,
     SupportRequestResponse,
-    CommentCreate,
-    CommentResponse,
-    StatusHistoryResponse,
 )
+
 
 router = APIRouter(
     prefix="/requests",
     tags=["Requests"]
 )
 
-support_requests_db: List[SupportRequestResponse] = []
-next_request_id = 1
-comments_db: List[CommentResponse] = []
-next_comment_id = 1
-status_history_db: List[StatusHistoryResponse] = []
-next_history_id = 1
 
 @router.post(
     "/",
     response_model=SupportRequestResponse,
     status_code=status.HTTP_201_CREATED
 )
-def create_request(request: SupportRequestCreate):
-    global next_request_id
-
+def create_request(
+    request: SupportRequestCreate,
+    db: Session = Depends(get_db)
+):
     current_time = datetime.now(timezone.utc)
 
-    new_request = SupportRequestResponse(
-        request_id=next_request_id,
+    new_request = models.SupportRequest(
         title=request.title,
         description=request.description,
         category=request.category,
-        priority=request.priority,
+        priority=request.priority.value,
         created_by=request.created_by,
-        status=RequestStatus.new,
+        status=RequestStatus.new.value,
         assigned_to=None,
         created_at=current_time,
         updated_at=current_time,
     )
 
-    support_requests_db.append(new_request)
-    next_request_id += 1
+    db.add(new_request)
+    db.commit()
+    db.refresh(new_request)
 
     return new_request
 
 
 @router.get("/", response_model=List[SupportRequestResponse])
-def get_all_requests():
-    return support_requests_db
+def get_all_requests(
+    db: Session = Depends(get_db)
+):
+    requests = db.scalars(
+        select(models.SupportRequest)
+        .order_by(models.SupportRequest.request_id)
+    ).all()
+
+    return requests
 
 
-@router.get("/{request_id}", response_model=SupportRequestResponse)
-def get_request_by_id(request_id: int):
-    for request in support_requests_db:
-        if request.request_id == request_id:
-            return request
-
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Request not found"
-    )
-
-
-@router.put("/{request_id}/status", response_model=SupportRequestResponse)
-def update_request_status(request_id: int, status_update: RequestStatusUpdate):
-    global next_history_id
-
-    for request in support_requests_db:
-        if request.request_id == request_id:
-            old_status = request.status
-
-            request.status = status_update.status
-            request.updated_at = datetime.now(timezone.utc)
-
-            history = StatusHistoryResponse(
-                history_id=next_history_id,
-                request_id=request_id,
-                old_status=old_status,
-                new_status=status_update.status,
-                changed_at=request.updated_at,
-            )
-
-            status_history_db.append(history)
-            next_history_id += 1
-
-            return request
-
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Request not found"
-    )
-
-
-@router.put("/{request_id}/assign", response_model=SupportRequestResponse)
-def assign_request(request_id: int, assignment: RequestAssignmentUpdate):
-    for request in support_requests_db:
-        if request.request_id == request_id:
-            request.assigned_to = assignment.assigned_to
-
-            if assignment.priority:
-                request.priority = assignment.priority
-
-            request.status = RequestStatus.assigned
-            request.updated_at = datetime.now(timezone.utc)
-            return request
-
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Request not found"
-    )
-@router.post(
-    "/{request_id}/comments",
-    response_model=CommentResponse,
-    status_code=status.HTTP_201_CREATED
+@router.get(
+    "/{request_id}",
+    response_model=SupportRequestResponse
 )
-def add_comment(request_id: int, comment: CommentCreate):
-    global next_comment_id
+def get_request_by_id(
+    request_id: int,
+    db: Session = Depends(get_db)
+):
+    request = db.get(models.SupportRequest, request_id)
 
-    request_exists = any(
-        request.request_id == request_id
-        for request in support_requests_db
-    )
-
-    if not request_exists:
+    if request is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Request not found"
         )
 
-    new_comment = CommentResponse(
-        comment_id=next_comment_id,
+    return request
+
+
+@router.put(
+    "/{request_id}/status",
+    response_model=SupportRequestResponse
+)
+def update_request_status(
+    request_id: int,
+    status_update: RequestStatusUpdate,
+    db: Session = Depends(get_db)
+):
+    request = db.get(models.SupportRequest, request_id)
+
+    if request is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Request not found"
+        )
+
+    old_status = request.status
+    new_status = status_update.status.value
+    current_time = datetime.now(timezone.utc)
+
+    request.status = new_status
+    request.updated_at = current_time
+
+    if old_status != new_status:
+        history = models.StatusHistory(
+            request_id=request_id,
+            old_status=old_status,
+            new_status=new_status,
+            changed_at=current_time,
+        )
+
+        db.add(history)
+
+    db.commit()
+    db.refresh(request)
+
+    return request
+
+
+@router.put(
+    "/{request_id}/assign",
+    response_model=SupportRequestResponse
+)
+def assign_request(
+    request_id: int,
+    assignment: RequestAssignmentUpdate,
+    db: Session = Depends(get_db)
+):
+    request = db.get(models.SupportRequest, request_id)
+
+    if request is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Request not found"
+        )
+
+    old_status = request.status
+    current_time = datetime.now(timezone.utc)
+
+    request.assigned_to = assignment.assigned_to
+
+    if assignment.priority is not None:
+        request.priority = assignment.priority.value
+
+    request.status = RequestStatus.assigned.value
+    request.updated_at = current_time
+
+    if old_status != RequestStatus.assigned.value:
+        history = models.StatusHistory(
+            request_id=request_id,
+            old_status=old_status,
+            new_status=RequestStatus.assigned.value,
+            changed_at=current_time,
+        )
+
+        db.add(history)
+
+    db.commit()
+    db.refresh(request)
+
+    return request
+
+
+@router.post(
+    "/{request_id}/comments",
+    response_model=CommentResponse,
+    status_code=status.HTTP_201_CREATED
+)
+def add_comment(
+    request_id: int,
+    comment: CommentCreate,
+    db: Session = Depends(get_db)
+):
+    request = db.get(models.SupportRequest, request_id)
+
+    if request is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Request not found"
+        )
+
+    new_comment = models.Comment(
         request_id=request_id,
         author=comment.author,
         message=comment.message,
         created_at=datetime.now(timezone.utc),
     )
 
-    comments_db.append(new_comment)
-    next_comment_id += 1
+    db.add(new_comment)
+    db.commit()
+    db.refresh(new_comment)
 
     return new_comment
 
@@ -156,41 +206,47 @@ def add_comment(request_id: int, comment: CommentCreate):
     "/{request_id}/comments",
     response_model=List[CommentResponse]
 )
-def get_request_comments(request_id: int):
-    request_exists = any(
-        request.request_id == request_id
-        for request in support_requests_db
-    )
+def get_request_comments(
+    request_id: int,
+    db: Session = Depends(get_db)
+):
+    request = db.get(models.SupportRequest, request_id)
 
-    if not request_exists:
+    if request is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Request not found"
         )
 
-    return [
-        comment
-        for comment in comments_db
-        if comment.request_id == request_id
-    ]
+    comments = db.scalars(
+        select(models.Comment)
+        .where(models.Comment.request_id == request_id)
+        .order_by(models.Comment.comment_id)
+    ).all()
+
+    return comments
+
+
 @router.get(
     "/{request_id}/history",
     response_model=List[StatusHistoryResponse]
 )
-def get_request_status_history(request_id: int):
-    request_exists = any(
-        request.request_id == request_id
-        for request in support_requests_db
-    )
+def get_request_status_history(
+    request_id: int,
+    db: Session = Depends(get_db)
+):
+    request = db.get(models.SupportRequest, request_id)
 
-    if not request_exists:
+    if request is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Request not found"
         )
 
-    return [
-        history
-        for history in status_history_db
-        if history.request_id == request_id
-    ]
+    history = db.scalars(
+        select(models.StatusHistory)
+        .where(models.StatusHistory.request_id == request_id)
+        .order_by(models.StatusHistory.history_id)
+    ).all()
+
+    return history
