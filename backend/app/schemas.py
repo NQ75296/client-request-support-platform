@@ -45,3 +45,13 @@ class RequestStatusUpdate(BaseModel):
 class RequestAssignmentUpdate(BaseModel):
     assigned_to: str = Field(..., min_length=2, max_length=100)
     priority: Optional[RequestPriority] = None
+
+class CommentCreate(BaseModel):
+    author: str = Field(..., min_length=2, max_length=100)
+    message: str = Field(..., min_length=2)
+
+
+class CommentResponse(CommentCreate):
+    comment_id: int
+    request_id: int
+    created_at: datetime

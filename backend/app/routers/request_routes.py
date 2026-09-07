@@ -9,6 +9,8 @@ from app.schemas import (
     RequestStatusUpdate,
     SupportRequestCreate,
     SupportRequestResponse,
+    CommentCreate,
+    CommentResponse,
 )
 
 router = APIRouter(
@@ -18,7 +20,8 @@ router = APIRouter(
 
 support_requests_db: List[SupportRequestResponse] = []
 next_request_id = 1
-
+comments_db: List[CommentResponse] = []
+next_comment_id = 1
 
 @router.post(
     "/",
@@ -97,3 +100,57 @@ def assign_request(request_id: int, assignment: RequestAssignmentUpdate):
         status_code=status.HTTP_404_NOT_FOUND,
         detail="Request not found"
     )
+@router.post(
+    "/{request_id}/comments",
+    response_model=CommentResponse,
+    status_code=status.HTTP_201_CREATED
+)
+def add_comment(request_id: int, comment: CommentCreate):
+    global next_comment_id
+
+    request_exists = any(
+        request.request_id == request_id
+        for request in support_requests_db
+    )
+
+    if not request_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Request not found"
+        )
+
+    new_comment = CommentResponse(
+        comment_id=next_comment_id,
+        request_id=request_id,
+        author=comment.author,
+        message=comment.message,
+        created_at=datetime.now(timezone.utc),
+    )
+
+    comments_db.append(new_comment)
+    next_comment_id += 1
+
+    return new_comment
+
+
+@router.get(
+    "/{request_id}/comments",
+    response_model=List[CommentResponse]
+)
+def get_request_comments(request_id: int):
+    request_exists = any(
+        request.request_id == request_id
+        for request in support_requests_db
+    )
+
+    if not request_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Request not found"
+        )
+
+    return [
+        comment
+        for comment in comments_db
+        if comment.request_id == request_id
+    ]
