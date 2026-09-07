@@ -62,25 +62,24 @@ function App() {
     Record<number, boolean>
   >({});
 
-  const loadRequests = async () => {
-    try {
-      const response = await fetch(`${API_URL}/requests/`);
-
-      if (!response.ok) {
-        throw new Error("Failed to load requests");
-      }
-
-      const data: SupportRequest[] = await response.json();
-      setRequests(data);
-    } catch (error) {
-      console.error("Error loading requests:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadRequests();
+    fetch(`${API_URL}/requests/`)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to load requests");
+        }
+
+        return response.json();
+      })
+      .then((data: SupportRequest[]) => {
+        setRequests(data);
+      })
+      .catch((error) => {
+        console.error("Error loading requests:", error);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   const handleSubmit = async (
@@ -252,14 +251,18 @@ function App() {
   };
 
   const toggleComments = async (requestId: number) => {
-    const currentlyOpen = commentsOpen[requestId] || false;
+    const currentlyOpen =
+      commentsOpen[requestId] || false;
 
     setCommentsOpen((current) => ({
       ...current,
       [requestId]: !currentlyOpen,
     }));
 
-    if (!currentlyOpen && comments[requestId] === undefined) {
+    if (
+      !currentlyOpen &&
+      comments[requestId] === undefined
+    ) {
       await loadComments(requestId);
     }
   };
@@ -270,8 +273,11 @@ function App() {
   ) => {
     event.preventDefault();
 
-    const author = commentAuthors[requestId]?.trim();
-    const message = commentMessages[requestId]?.trim();
+    const author =
+      commentAuthors[requestId]?.trim();
+
+    const message =
+      commentMessages[requestId]?.trim();
 
     if (!author || !message) {
       alert("Please enter author and comment.");
@@ -297,7 +303,8 @@ function App() {
         throw new Error("Failed to add comment");
       }
 
-      const newComment: Comment = await response.json();
+      const newComment: Comment =
+        await response.json();
 
       setComments((current) => ({
         ...current,
@@ -329,7 +336,8 @@ function App() {
   ).length;
 
   const resolvedRequests = requests.filter(
-    (request) => request.status === "Resolved"
+    (request) =>
+      request.status === "Resolved"
   ).length;
 
   return (
@@ -337,7 +345,9 @@ function App() {
       <header className="header">
         <div>
           <h1>Client Request & Support</h1>
-          <p>Manage and track client support requests</p>
+          <p>
+            Manage and track client support requests
+          </p>
         </div>
 
         <button
@@ -346,7 +356,9 @@ function App() {
             setShowForm((current) => !current)
           }
         >
-          {showForm ? "Cancel" : "+ New Request"}
+          {showForm
+            ? "Cancel"
+            : "+ New Request"}
         </button>
       </header>
 
@@ -360,7 +372,9 @@ function App() {
               onSubmit={handleSubmit}
             >
               <div className="form-group">
-                <label htmlFor="title">Title</label>
+                <label htmlFor="title">
+                  Title
+                </label>
 
                 <input
                   id="title"
@@ -384,7 +398,9 @@ function App() {
                   id="description"
                   value={description}
                   onChange={(event) =>
-                    setDescription(event.target.value)
+                    setDescription(
+                      event.target.value
+                    )
                   }
                   minLength={10}
                   required
@@ -402,7 +418,9 @@ function App() {
                     type="text"
                     value={category}
                     onChange={(event) =>
-                      setCategory(event.target.value)
+                      setCategory(
+                        event.target.value
+                      )
                     }
                     required
                   />
@@ -417,14 +435,23 @@ function App() {
                     id="priority"
                     value={priority}
                     onChange={(event) =>
-                      setPriority(event.target.value)
+                      setPriority(
+                        event.target.value
+                      )
                     }
                   >
-                    <option value="Low">Low</option>
+                    <option value="Low">
+                      Low
+                    </option>
+
                     <option value="Medium">
                       Medium
                     </option>
-                    <option value="High">High</option>
+
+                    <option value="High">
+                      High
+                    </option>
+
                     <option value="Urgent">
                       Urgent
                     </option>
@@ -442,7 +469,9 @@ function App() {
                   type="text"
                   value={createdBy}
                   onChange={(event) =>
-                    setCreatedBy(event.target.value)
+                    setCreatedBy(
+                      event.target.value
+                    )
                   }
                   minLength={2}
                   required
@@ -511,22 +540,30 @@ function App() {
 
                   <div className="request-details">
                     <span>
-                      <strong>Category:</strong>{" "}
+                      <strong>
+                        Category:
+                      </strong>{" "}
                       {request.category}
                     </span>
 
                     <span>
-                      <strong>Priority:</strong>{" "}
+                      <strong>
+                        Priority:
+                      </strong>{" "}
                       {request.priority}
                     </span>
 
                     <span>
-                      <strong>Created by:</strong>{" "}
+                      <strong>
+                        Created by:
+                      </strong>{" "}
                       {request.created_by}
                     </span>
 
                     <span>
-                      <strong>Assigned to:</strong>{" "}
+                      <strong>
+                        Assigned to:
+                      </strong>{" "}
                       {request.assigned_to ||
                         "Not assigned"}
                     </span>
@@ -549,22 +586,30 @@ function App() {
                         )
                       }
                     >
-                      <option value="New">New</option>
+                      <option value="New">
+                        New
+                      </option>
+
                       <option value="In Review">
                         In Review
                       </option>
+
                       <option value="Assigned">
                         Assigned
                       </option>
+
                       <option value="In Progress">
                         In Progress
                       </option>
+
                       <option value="More Info Required">
                         More Info Required
                       </option>
+
                       <option value="Resolved">
                         Resolved
                       </option>
+
                       <option value="Closed">
                         Closed
                       </option>
@@ -583,14 +628,18 @@ function App() {
                       type="text"
                       placeholder="Support Engineer"
                       value={
-                        assignees[request.request_id] || ""
+                        assignees[
+                          request.request_id
+                        ] || ""
                       }
                       onChange={(event) =>
-                        setAssignees((current) => ({
-                          ...current,
-                          [request.request_id]:
-                            event.target.value,
-                        }))
+                        setAssignees(
+                          (current) => ({
+                            ...current,
+                            [request.request_id]:
+                              event.target.value,
+                          })
+                        )
                       }
                     />
 
@@ -612,25 +661,35 @@ function App() {
                       type="button"
                       className="comments-toggle"
                       onClick={() =>
-                        toggleComments(request.request_id)
+                        toggleComments(
+                          request.request_id
+                        )
                       }
                     >
-                      {commentsOpen[request.request_id]
+                      {commentsOpen[
+                        request.request_id
+                      ]
                         ? "Hide Comments"
                         : "View Comments"}
                     </button>
 
-                    {commentsOpen[request.request_id] && (
+                    {commentsOpen[
+                      request.request_id
+                    ] && (
                       <div className="comments-content">
                         <h4>Comments</h4>
 
                         {loadingComments[
                           request.request_id
                         ] ? (
-                          <p>Loading comments...</p>
-                        ) : (comments[
+                          <p>
+                            Loading comments...
+                          </p>
+                        ) : (
+                          comments[
                             request.request_id
-                          ] || []).length === 0 ? (
+                          ] || []
+                        ).length === 0 ? (
                           <p className="no-comments">
                             No comments yet.
                           </p>
@@ -643,13 +702,17 @@ function App() {
                             ).map((comment) => (
                               <div
                                 className="comment-item"
-                                key={comment.comment_id}
+                                key={
+                                  comment.comment_id
+                                }
                               >
                                 <strong>
                                   {comment.author}
                                 </strong>
 
-                                <p>{comment.message}</p>
+                                <p>
+                                  {comment.message}
+                                </p>
                               </div>
                             ))}
                           </div>
@@ -677,7 +740,8 @@ function App() {
                                 (current) => ({
                                   ...current,
                                   [request.request_id]:
-                                    event.target.value,
+                                    event.target
+                                      .value,
                                 })
                               )
                             }
@@ -697,7 +761,8 @@ function App() {
                                 (current) => ({
                                   ...current,
                                   [request.request_id]:
-                                    event.target.value,
+                                    event.target
+                                      .value,
                                 })
                               )
                             }
