@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.routers import request_routes
+
 app = FastAPI(
     title="Client Request & Support Workflow API",
     version="0.1.0"
@@ -18,6 +20,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(request_routes.router)
 
 
 @app.get("/")
