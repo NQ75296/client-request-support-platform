@@ -11,6 +11,7 @@ from app.schemas import (
     SupportRequestResponse,
     CommentCreate,
     CommentResponse,
+    StatusHistoryResponse,
 )
 
 router = APIRouter(
@@ -22,6 +23,8 @@ support_requests_db: List[SupportRequestResponse] = []
 next_request_id = 1
 comments_db: List[CommentResponse] = []
 next_comment_id = 1
+status_history_db: List[StatusHistoryResponse] = []
+next_history_id = 1
 
 @router.post(
     "/",
@@ -71,10 +74,26 @@ def get_request_by_id(request_id: int):
 
 @router.put("/{request_id}/status", response_model=SupportRequestResponse)
 def update_request_status(request_id: int, status_update: RequestStatusUpdate):
+    global next_history_id
+
     for request in support_requests_db:
         if request.request_id == request_id:
+            old_status = request.status
+
             request.status = status_update.status
             request.updated_at = datetime.now(timezone.utc)
+
+            history = StatusHistoryResponse(
+                history_id=next_history_id,
+                request_id=request_id,
+                old_status=old_status,
+                new_status=status_update.status,
+                changed_at=request.updated_at,
+            )
+
+            status_history_db.append(history)
+            next_history_id += 1
+
             return request
 
     raise HTTPException(
@@ -153,4 +172,25 @@ def get_request_comments(request_id: int):
         comment
         for comment in comments_db
         if comment.request_id == request_id
+    ]
+@router.get(
+    "/{request_id}/history",
+    response_model=List[StatusHistoryResponse]
+)
+def get_request_status_history(request_id: int):
+    request_exists = any(
+        request.request_id == request_id
+        for request in support_requests_db
+    )
+
+    if not request_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Request not found"
+        )
+
+    return [
+        history
+        for history in status_history_db
+        if history.request_id == request_id
     ]

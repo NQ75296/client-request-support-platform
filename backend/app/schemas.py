@@ -55,3 +55,10 @@ class CommentResponse(CommentCreate):
     comment_id: int
     request_id: int
     created_at: datetime
+    
+class StatusHistoryResponse(BaseModel):
+    history_id: int
+    request_id: int
+    old_status: RequestStatus
+    new_status: RequestStatus
+    changed_at: datetime
